@@ -79,7 +79,7 @@ function App(): React.JSX.Element {
     const fetchUniqueId = async () => {
       try {
         const id = await DeviceInfo.getUniqueId(); // Await the unique ID
-        console.log('Device Unique ID:', id); // Log the unique ID
+        // console.log('Device Unique ID:', id); // Log the unique ID
         setUniqueId(id); // Set the unique ID in state
       } catch (error) {
         console.error('Error fetching unique ID:', error);
@@ -101,32 +101,47 @@ function App(): React.JSX.Element {
   };
 
   useEffect(() => {
-    if (uniqueId) { // Ensure uniqueId is available
-      const intervalId = setInterval(async () => {
+    const fetchData = async () => {
+      if (uniqueId) { // Ensure uniqueId is available
         try {
-          console.log('SALJEMO REQUEST')
-          const response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/configuration/${uniqueId}`);
+          console.log('Sending request...');
+          const response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/configuration/${uniqueId}`);   
           const newConfig = await response.json();
-  
+       
           // Compare current products with the new products
+
+
+
+          // ovde si imao problem newconfig product details je []
+
           if (JSON.stringify(newConfig.productDetails) !== JSON.stringify(products)) {
             setLoadingProductsChanged(true);
-            console.log("Products have changed", newConfig.productDetails);
-  
+            console.log("Products have changed");
+
+            console.log(newConfig.productDetails)
+            // console.log(JSON.stringify(products))
+
             // Update products and download new content if the products have changed
             setProducts(newConfig.productDetails || []);
             downloadContent(newConfig.contentToDownload || []);
             setconfigurationFetched(true);
             setLoadingProductsChanged(false);
           }
+          else {
+            console.log('products have not changed')
+          }
         } catch (error) {
           console.error('[Debug] Error occurred while fetching data:', error);
-        }
-      }, 10000); // Refresh every 10 seconds
+        } 
+      }
+    };
   
-      return () => clearInterval(intervalId); // Clear interval on cleanup
-    }
-  }, []); // This effect runs continuously if uniqueId is available
+    fetchData(); // Start the initial fetch
+    const interval = setInterval(fetchData, 5000)
+    return () => clearInterval(interval); // Cleanup interval on component unmount
+
+  }, [uniqueId]); // Empty dependency array, runs only on mount
+  
 
   const fetchDeviceConfiguration = async (uniqueId: string) => {
   
@@ -222,7 +237,7 @@ function App(): React.JSX.Element {
       ...prevStatuses.filter((s) => s.id !== status.id), // Remove previous status for the same content ID
       status, // Add the new status
     ]);
-    console.log(`${status.id}: ${status.status} - ${status.message}`);
+    // console.log(`${status.id}: ${status.status} - ${status.message}`);
   };
 
    // Function to download content files
@@ -268,7 +283,7 @@ function App(): React.JSX.Element {
       setCurrentComponent(prevComponent => (prevComponent + 1) % 3);
       // setCurrentComponent(2);
 
-    }, 20000);
+    }, 6000);
     return () => clearInterval(interval); // Cleanup the interval on component unmount
   }, []);
 
@@ -281,13 +296,20 @@ function App(): React.JSX.Element {
             <ScrollView contentContainerStyle={firstSectionStyles.productSectionContainer}>
               <View style={firstSectionStyles.qrSection}>
                 <Text style={firstSectionStyles.qrText}>QR CODE AREA</Text>
-                <Image source={require('./src/images/device_123_qr_code.png')} style={{ width: 150, height: 150 }} />
+
+                {uniqueId &&
+                  <QRCode
+                    value={uniqueId}
+                    size={150}
+                  />
+                }
+                
               </View>
 
               <View key={`background-video`}>
                 {backgroundVideoPath ? (
                   <>
-                    {console.log('Rendering Video with path:', backgroundVideoPath)}
+                    {/* {console.log('Rendering Video with path:', backgroundVideoPath)} */}
                     <Video
                       source={{ uri: `file://${backgroundVideoPath}` }}
                       style={[firstSectionStyles.absoluteVideo, { width: 3600, height: 300 }]}
@@ -298,14 +320,14 @@ function App(): React.JSX.Element {
                       muted={true} // Ensure the video is muted (for debugging)
                       playInBackground={true}
                       disableFocus={true}
-                      onError={(error) => console.log('Video Error:', error)} // Add error handling
-                      onBuffer={() => console.log('Buffering...')} // Add buffering detection
-                      onLoad={() => console.log('Video loaded successfully')} // Check when the video is loaded
+                      // onError={(error) => console.log('Video Error:', error)} // Add error handling
+                      // onBuffer={() => console.log('Buffering...')} // Add buffering detection
+                      // onLoad={() => console.log('Video loaded successfully')} // Check when the video is loaded
                     />
                   </>
                 ) : (
                   <>
-                    {console.log('No backgroundVideoPath, not rendering video')}
+                    {/* {console.log('No backgroundVideoPath, not rendering video')} */}
                     <Text>Video is loading or unavailable</Text>
                   </>
                 )}
@@ -377,10 +399,10 @@ function App(): React.JSX.Element {
             <ScrollView contentContainerStyle={secondSectionStyles.imagesSectionContainer}>            
               {products.length > 0 &&
               products.map((product, index) => {
-                console.log('Product Video:', product);
+                // console.log('Product Video:', product);
 
                 if (!product.videoUrl) {
-                  console.log(`Product ${index} has no videoUrl`);
+                  // console.log(`Product ${index} has no videoUrl`);
                   return null; // Skip if videoUrl is missing
                 }
 
@@ -450,7 +472,7 @@ function App(): React.JSX.Element {
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.mainContainer}>
           <SafeAreaView style={styles.container}>
-            {/* {renderComponent()} */}
+            {renderComponent()}
           </SafeAreaView>
         </ScrollView>
       </View>
