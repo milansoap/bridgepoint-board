@@ -15,8 +15,12 @@ import {
   Text,
   View,
 } from 'react-native';
+import DeviceInfo from 'react-native-device-info';
 import RNFS from 'react-native-fs';
 import Video from 'react-native-video';
+import { reporter } from './metro.config';
+
+import QRCode from 'react-native-qrcode-svg';
 
 interface Content {
   id: string;
@@ -33,6 +37,31 @@ interface DownloadStatus {
   message: string;
 }
 
+// const deviceIdFilePath = `${RNFS.DocumentDirectoryPath}/device_id.txt`;
+
+// Function to register the device if no ID is found
+const registerDevice = async (deviceId: string) => {
+  try {
+    // Make a POST request to the URL with the deviceId in the path
+    const response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/${deviceId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}), // Sending an empty body for the device registration
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+  } catch (error) {
+    console.error('[Debug] Error registering device:', error);
+    return null;
+  }
+};
+
+
 function App(): React.JSX.Element {
 
   const [currentComponent, setCurrentComponent] = useState(0); // State to keep track of the component to display
@@ -40,6 +69,27 @@ function App(): React.JSX.Element {
   const [contentMapping, setContentMapping] = useState<{ [key: string]: string }>({});
   const [downloadStatuses, setDownloadStatuses] = useState<DownloadStatus[]>([]); // State to track download statuses
   const [backgroundVideoPath, setBackgroundVideoPath] = useState<string | null>(null); // State to store the background video path
+  const [emptyStateImageDufry, setEmptyStateImageDufry] = useState<string | null>(null); // State to store the background video path
+  const [loadingProductsChanged, setLoadingProductsChanged] = useState(false); // State to hold products array
+  const [uniqueId, setUniqueId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true); // State to manage loading
+  const [configurationFetched, setconfigurationFetched] = useState(false); // State to manage loading
+
+  useEffect(() => {
+    const fetchUniqueId = async () => {
+      try {
+        const id = await DeviceInfo.getUniqueId(); // Await the unique ID
+        console.log('Device Unique ID:', id); // Log the unique ID
+        setUniqueId(id); // Set the unique ID in state
+      } catch (error) {
+        console.error('Error fetching unique ID:', error);
+      } finally {
+        setLoading(false); // Set loading to false after ID is fetched
+      }
+    };
+
+    fetchUniqueId(); // Fetch the unique ID on component mount
+  }, []);
 
   const getDiscountedPrice = (originalPrice: number, discount: number) => {
     return (originalPrice - originalPrice * discount).toFixed(2);
@@ -51,35 +101,69 @@ function App(): React.JSX.Element {
   };
 
   useEffect(() => {
-    StatusBar.setHidden(true); // Hides the status bar
-   
-    fetch('https://romantic-musical-glider.ngrok-free.app/devices/configuration/device_123')
-      .then((response) => {
-        console.log('[Debug] Response received from API:', response); // Debug statement
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`); // Error if status is not 200-299
+    if (uniqueId) { // Ensure uniqueId is available
+      const intervalId = setInterval(async () => {
+        try {
+          console.log('SALJEMO REQUEST')
+          const response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/configuration/${uniqueId}`);
+          const newConfig = await response.json();
+  
+          // Compare current products with the new products
+          if (JSON.stringify(newConfig.productDetails) !== JSON.stringify(products)) {
+            setLoadingProductsChanged(true);
+            console.log("Products have changed", newConfig.productDetails);
+  
+            // Update products and download new content if the products have changed
+            setProducts(newConfig.productDetails || []);
+            downloadContent(newConfig.contentToDownload || []);
+            setconfigurationFetched(true);
+            setLoadingProductsChanged(false);
+          }
+        } catch (error) {
+          console.error('[Debug] Error occurred while fetching data:', error);
         }
-        return response.json(); // Convert response to JSON
-      })
-      .then((json) => {
-        console.log('[Debug] JSON data parsed:', json); // Debug statement
-        console.log(json)
-        setProducts(json.productDetails || []); // Set the products array from the response
-        downloadContent(json.contentToDownload || []); // Initiate download of images and videos
-      })
-      .catch((error) => {
-        console.error('[Debug] Error occurred while fetching data:', error); // Debug statement
-      });
+      }, 10000); // Refresh every 10 seconds
+  
+      return () => clearInterval(intervalId); // Clear interval on cleanup
+    }
+  }, []); // This effect runs continuously if uniqueId is available
 
-      downloadBackgroundVideo();
+  const fetchDeviceConfiguration = async (uniqueId: string) => {
+  
+    try {
+      let response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/configuration/${uniqueId}`);
+  
+      if (response.status === 404) {
+        await registerDevice(uniqueId); // Register the device if not found
+        response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/configuration/${uniqueId}`); // Re-fetch configuration after registering
+      }
+  
+      const json = await response.json();
+  
+      // Handle fetched data here, such as setting products and downloading content
+      if (json.productDetails?.length > 0) {
+        setProducts(json.productDetails || []);
+        downloadContent(json.contentToDownload || []);
+        setconfigurationFetched(true);
+      }
+  
+    } catch (error) {
+      console.error('[Debug] Error occurred while fetching data:', error); // Debug statement
+    }
+  };
+  
 
-  }, []);
+  useEffect(() => {
+    StatusBar.setHidden(true); // Hides the status bar
+    if (uniqueId) { // Ensure this runs only when uniqueId is available
+      fetchDeviceConfiguration(uniqueId);
+    }
+  }, [uniqueId]); // This effect will run only when uniqueId changes
+  
 
-
-  // Function to download the background video
   const downloadBackgroundVideo = async () => {
 
-    const videoId = '670a8fe419570f13b35c63d3'; // Background video ID
+    const videoId = '670abcd6c2e7df3eb68ba492'; // Background video ID
     const filePath = `${RNFS.DocumentDirectoryPath}/${videoId}.mp4`; // Path to save the video
     const fileExists = await RNFS.exists(filePath);
 
@@ -103,6 +187,35 @@ function App(): React.JSX.Element {
       setBackgroundVideoPath(filePath); // Store the video path if it already exists
     }
   };
+
+
+  // Function to download the background video
+  const downloadEmptyStateImageDufry = async () => {
+
+    const dufryImage = '670abcd6c2e7df3eb68ba492'; // Background video ID
+    const filePath = `${RNFS.DocumentDirectoryPath}/${dufryImage}.jpg`; // Path to save the video
+    const fileExists = await RNFS.exists(filePath);
+
+    if (!fileExists) {
+      try {
+        updateStatus({ id: dufryImage, status: 'downloading', message: 'Downloading empty state  image' });
+
+        const downloadUrl = `https://romantic-musical-glider.ngrok-free.app/files/${dufryImage}`;
+        await RNFS.downloadFile({
+          fromUrl: downloadUrl,
+          toFile: filePath,
+        }).promise;
+
+        updateStatus({ id: dufryImage, status: 'completed', message: 'Empty state image downloaded' });
+        setEmptyStateImageDufry(filePath); // Store the video path in state
+      } catch (error) {
+        updateStatus({ id: dufryImage, status: 'error', message: 'Error downloading empty state image' });
+      }
+    } else {
+      updateStatus({ id: dufryImage, status: 'already_exists', message: 'Image already exists' });
+      setEmptyStateImageDufry(filePath); // Store the video path if it already exists
+    }
+  };
   
   const updateStatus = (status: DownloadStatus) => {
     setDownloadStatuses((prevStatuses) => [
@@ -111,7 +224,6 @@ function App(): React.JSX.Element {
     ]);
     console.log(`${status.id}: ${status.status} - ${status.message}`);
   };
-
 
    // Function to download content files
    const downloadContent = async (
@@ -150,6 +262,8 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     // Timer to change components every 5 seconds
+    downloadBackgroundVideo();
+    downloadEmptyStateImageDufry();
     const interval = setInterval(() => {
       setCurrentComponent(prevComponent => (prevComponent + 1) % 3);
       // setCurrentComponent(2);
@@ -157,7 +271,6 @@ function App(): React.JSX.Element {
     }, 20000);
     return () => clearInterval(interval); // Cleanup the interval on component unmount
   }, []);
-
 
   const renderComponent = () => {
     switch (currentComponent) {
@@ -301,15 +414,96 @@ function App(): React.JSX.Element {
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.mainContainer}>
-        <SafeAreaView style={styles.container}>
-          {renderComponent()}
-        </SafeAreaView>
-      </ScrollView>
-    </View>
-  );
+  if (!uniqueId || loadingProductsChanged === true) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Fetching Device ID and Configuration...</Text>
+      </View>
+    )
+  }
+
+  // Render empty state if the products are empty
+  else if (products.length === 0) {
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={firstSectionStyles.productSectionContainer}>
+          <View style={firstSectionStyles.qrSection}>
+            <Text style={firstSectionStyles.qrText}>QR CODE AREA</Text>
+            {/* <Image source={require('./src/images/device_123_qr_code.png')} style={{ width: 150, height: 150 }} /> */}
+            <QRCode
+            value={uniqueId}
+            size={150}
+          />
+          </View>
+
+          <Image
+            source={{ uri: `file://${emptyStateImageDufry}` }} // Load from the local file system
+            style={emptyStateImageDufryStyles.image} // Image style from StyleSheet
+          />
+        </ScrollView>
+      </View>
+    ) 
+  } 
+  
+  else if (uniqueId && products.length > 0) {
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.mainContainer}>
+          <SafeAreaView style={styles.container}>
+            {/* {renderComponent()} */}
+          </SafeAreaView>
+        </ScrollView>
+      </View>
+    )
+    
+  }
+
+  else {
+    return (
+      <>
+        <View>
+          <Text>Something went wrong</Text>
+        </View>
+      </>
+    );
+  }
+
+  
+
+  // // Show a loading screen until the app is fully initialized
+  // if (loading === true || !uniqueId) {
+  //   return (
+  //     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+  //       {/* <ActivityIndicator size="large" color="#0000ff" /> */}
+  //       <Text>Fetching Device ID and Configuration...</Text>
+  //       <Image
+  //           source={{ uri: `file://${emptyStateImageDufry}` }} // Load from the local file system
+  //           style={secondSectionStyles.imageStyle} // Image style from StyleSheet
+  //         />
+  //     </View>
+  //   );
+  // }
+
+  // if (uniqueId && configurationFetched) {
+  //   return (
+  //     <View style={styles.container}>
+  //       <ScrollView contentContainerStyle={styles.mainContainer}>
+  //         <SafeAreaView style={styles.container}>
+  //           {/* {renderComponent()} */}
+  //         </SafeAreaView>
+  //       </ScrollView>
+  //     </View>
+  //   );
+  // }
+
+  // else {
+  //   return (<>
+  //   <View>
+  //     <Text>Something went wrong</Text>
+  //   </View>
+  //   </>);
+  // }
+  
 }
 
 
@@ -414,7 +608,6 @@ const firstSectionStyles = StyleSheet.create({
 
 })
 
-
 const secondSectionStyles = StyleSheet.create({
   container: {
     flex: 1,
@@ -487,5 +680,15 @@ const styles = StyleSheet.create({
   },
 });
 
+const emptyStateImageDufryStyles = StyleSheet.create({
+
+  image: {
+    flex: 1,
+    position: 'relative',
+    maxWidth: '101%',
+    maxHeight: '100%'
+  },
+
+});
 
 export default App;
