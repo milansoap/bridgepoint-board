@@ -6,7 +6,6 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import type {PropsWithChildren} from 'react';
 import {
   Image,
   SafeAreaView,
@@ -14,20 +13,10 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  useColorScheme,
   View,
 } from 'react-native';
-import RNFS from 'react-native-fs'; // Import react-native-fs for file handling
+import RNFS from 'react-native-fs';
 import Video from 'react-native-video';
-
-
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
 
 interface Content {
   id: string;
@@ -45,7 +34,6 @@ interface DownloadStatus {
 }
 
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
 
   const [currentComponent, setCurrentComponent] = useState(0); // State to keep track of the component to display
   const [products, setProducts] = useState<Array<any>>([]); // State to hold products array
@@ -61,13 +49,10 @@ function App(): React.JSX.Element {
     const discounts = [0.1, 0.2, 0.15, 0.25]; // 10%, 20%, 15%, 25%, etc.
     return discounts[Math.floor(Math.random() * discounts.length)];
   };
-  
 
   useEffect(() => {
     StatusBar.setHidden(true); // Hides the status bar
-    console.log('[Debug] useEffect started: Status bar hidden'); // Debug statement
-
-    console.log('[Debug] Fetching data from API...'); // Debug statement
+   
     fetch('https://romantic-musical-glider.ngrok-free.app/devices/configuration/device_123')
       .then((response) => {
         console.log('[Debug] Response received from API:', response); // Debug statement
@@ -163,14 +148,11 @@ function App(): React.JSX.Element {
     setContentMapping(mapping); // Update state with the mapping
   };
 
-  
-
-
   useEffect(() => {
     // Timer to change components every 5 seconds
     const interval = setInterval(() => {
-      // setCurrentComponent(prevComponent => (prevComponent + 1) % 3);
-      setCurrentComponent(0);
+      setCurrentComponent(prevComponent => (prevComponent + 1) % 3);
+      // setCurrentComponent(2);
 
     }, 20000);
     return () => clearInterval(interval); // Cleanup the interval on component unmount
@@ -183,149 +165,137 @@ function App(): React.JSX.Element {
         return (
           <View style={styles.container}>
 
-  <ScrollView contentContainerStyle={firstSectionStyles.productSectionContainer}>
-    <View style={firstSectionStyles.qrSection}>
-      <Text style={firstSectionStyles.qrText}>QR CODE AREA</Text>
-      <Image source={require('./src/images/device_123_qr_code.png')} style={{ width: 150, height: 150 }} />
-    </View>
+            <ScrollView contentContainerStyle={firstSectionStyles.productSectionContainer}>
+              <View style={firstSectionStyles.qrSection}>
+                <Text style={firstSectionStyles.qrText}>QR CODE AREA</Text>
+                <Image source={require('./src/images/device_123_qr_code.png')} style={{ width: 150, height: 150 }} />
+              </View>
+
+              <View key={`background-video`}>
+                {backgroundVideoPath ? (
+                  <>
+                    {console.log('Rendering Video with path:', backgroundVideoPath)}
+                    <Video
+                      source={{ uri: `file://${backgroundVideoPath}` }}
+                      style={[firstSectionStyles.absoluteVideo, { width: 3600, height: 300 }]}
+                      controls={false} // Set to false to disable video controls
+                      resizeMode="cover" // Ensure the video fills the container
+                      paused={false} // Ensure the video is not paused
+                      repeat={true} // Ensure the video loops
+                      muted={true} // Ensure the video is muted (for debugging)
+                      playInBackground={true}
+                      disableFocus={true}
+                      onError={(error) => console.log('Video Error:', error)} // Add error handling
+                      onBuffer={() => console.log('Buffering...')} // Add buffering detection
+                      onLoad={() => console.log('Video loaded successfully')} // Check when the video is loaded
+                    />
+                  </>
+                ) : (
+                  <>
+                    {console.log('No backgroundVideoPath, not rendering video')}
+                    <Text>Video is loading or unavailable</Text>
+                  </>
+                )}
+              </View>
 
 
-<View key={`background-video`}>
-  {backgroundVideoPath ? (
-    <>
-      {console.log('Rendering Video with path:', backgroundVideoPath)}
-      <Video
-        source={{ uri: `file://${backgroundVideoPath}` }}
-        style={[firstSectionStyles.absoluteVideo, { width: 3600, height: 300 }]}
-        controls={false} // Set to false to disable video controls
-        resizeMode="cover" // Ensure the video fills the container
-        paused={false} // Ensure the video is not paused
-        repeat={true} // Ensure the video loops
-        muted={true} // Ensure the video is muted (for debugging)
-        playInBackground={true}
-        disableFocus={true}
-        onError={(error) => console.log('Video Error:', error)} // Add error handling
-        onBuffer={() => console.log('Buffering...')} // Add buffering detection
-        onLoad={() => console.log('Video loaded successfully')} // Check when the video is loaded
-      />
-    </>
-  ) : (
-    <>
-      {console.log('No backgroundVideoPath, not rendering video')}
-      <Text>Video is loading or unavailable</Text>
-    </>
-  )}
-</View>
+              <View key={'product_prices_view'} style={firstSectionStyles.productSection}>
+                {products.map((product, index) => (
+                  <View key={index} style={firstSectionStyles.productCard}>
 
+                      <Text style={firstSectionStyles.offerLabel}>SPECIAL OFFER</Text>
 
-    <View key={'product_prices_view'} style={firstSectionStyles.productSection}>
-      {products.map((product, index) => (
-        <View key={index} style={firstSectionStyles.productCard}>
+                      <View style={firstSectionStyles.priceContainer}>
+                        <Text style={firstSectionStyles.productTitle}>{product.articleDescription}</Text>
+                        <View style={firstSectionStyles.priceValues}>
+                          {product.sellingPrice && (
+                            <>
+                              <Text style={firstSectionStyles.discountedPrice}>
+                                €{getDiscountedPrice(product.sellingPrice, getDiscount())}
+                              </Text>
+                              <Text style={firstSectionStyles.originalPrice}>
+                                €{product.sellingPrice}
+                              </Text>
+                            </>
+                          )}
+                        </View>
+                      </View>
 
-          <Text style={firstSectionStyles.offerLabel}>SPECIAL OFFER</Text>
-
-{/* // MILANE OVDE SAM */}
-          <View style={firstSectionStyles.priceContainer}>
-            <Text style={firstSectionStyles.productTitle}>{product.articleDescription}</Text>
-            <View style={firstSectionStyles.priceValues}>
-              {product.sellingPrice && (
-                <>
-                  <Text style={firstSectionStyles.discountedPrice}>
-                    €{getDiscountedPrice(product.sellingPrice, getDiscount())}
-                  </Text>
-                  <Text style={firstSectionStyles.originalPrice}>
-                    €{product.sellingPrice}
-                  </Text>
-                </>
-              )}
-            </View>
+                        <Text style={firstSectionStyles.productVendor}>{product.vendorName}</Text>
+                      </View>
+                  ))}
+                </View>
+            </ScrollView>
           </View>
-
-          <Text style={firstSectionStyles.productVendor}>{product.vendorName}</Text>
-
-
-        </View>
-      ))}
-    </View>
-
-
-  </ScrollView>
-</View>
-
         );
       case 1: // Second component: Image display
       return (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}> 
-          {products.length > 0 &&
-            products.map((product, index) => {
-              console.log('Product:', product);
+        <View style={secondSectionStyles.container}>
+          <ScrollView contentContainerStyle={secondSectionStyles.imagesSectionContainer}>
+          
+            {products.length > 0 &&
+              products.map((product, index) => {
+                
+                if (!product.imgUrl) {
+                  return null; // Skip if imgUrl is missing
+                }
+      
+                const filePath = contentMapping[product.imgUrl]; // Get file path from contentMapping
               
-              if (!product.imgUrl) {
-                console.log(`Product ${index} has no imgUrl`);
-                return null; // Skip if imgUrl is missing
-              }
-    
-              const filePath = contentMapping[product.imgUrl]; // Get file path from contentMapping
-              
-              console.log('product.imgUrl:', product.imgUrl);
-              console.log('filePath:', filePath);
-              console.log('KOLIKO IMA PRODUKATA U DEVICU', products.length)
-              return (
-                filePath ? (
-                  <Image
-                    key={`${product.imgUrl}-${index}`} // Combine imgUrl and index to ensure unique key
-                    source={{ uri: `file://${filePath}` }} // Load from the local file system
-                    style={{ width: 300, height: 300, marginBottom: 10 }} // Adjust size and style as needed
-                  />
-                ) : (
-                  <Text key={`${product.imgUrl}-${index}`} style={{ color: '#fff' }}>Image not available</Text>
-                )
-              );
+                return (
+                  filePath ? (
+                    <View key={`${product.imgUrl}-${index}`} style={secondSectionStyles.imageWrapper}>
+                      <Image
+                        source={{ uri: `file://${filePath}` }} // Load from the local file system
+                        style={secondSectionStyles.imageStyle} // Image style from StyleSheet
+                      />
+                    </View>
+                  ) : (
+                    <Text key={`${product.imgUrl}-${index}`} style={{ color: '#fff' }}>Image not available</Text>
+                  )
+                );
             })}
+          </ScrollView>
         </View>
       );
+      case 2:
+        return (
+          <View style={secondSectionStyles.container}>
+            <ScrollView contentContainerStyle={secondSectionStyles.imagesSectionContainer}>            
+              {products.length > 0 &&
+              products.map((product, index) => {
+                console.log('Product Video:', product);
 
-      case 2: // Third component: Video display
-  return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', padding: 10 }}> 
-      {products.length > 0 &&
-        products.map((product, index) => {
-          console.log('Product Video:', product);
+                if (!product.videoUrl) {
+                  console.log(`Product ${index} has no videoUrl`);
+                  return null; // Skip if videoUrl is missing
+                }
 
-          if (!product.videoUrl) {
-            console.log(`Product ${index} has no videoUrl`);
-            return null; // Skip if videoUrl is missing
-          }
+                const videoPath = contentMapping[product.videoUrl];
 
-          const videoPath = contentMapping[product.videoUrl]; // Get file path from contentMapping
-          console.log(`File exists: ${videoPath ? 'Yes' : 'No'} at ${videoPath}`);
-
-          console.log('product.videoUrl:', product.videoUrl);
-          console.log('videoPaths:', videoPath);
-
-         
-          return (
-            videoPath ? (
-              <View key={`${product.videoUrl}-${index}`} style={{ marginBottom: 20, marginRight: 10 }}>
-                <Video
-                  source={{ uri: `file://${videoPath}` }} // Load from the local file system
-                  style={{ width: 700, height: 300 }} // Adjust size and style as needed
-                  controls={false} // Add controls like play, pause, etc.
-                  resizeMode="cover" // Ensure the video covers the space
-                  paused={false} // Ensure the video plays automatically
-                  repeat={true} // Optional: Set to true if you want videos to loop
-                  muted={false} // Ensure the video plays with sound
-                  playInBackground={true}
-                  disableFocus={true}
-                />
-              </View>
-            ) : (
-              <Text key={`${product.videoUrl}-${index}`} style={{ color: '#fff' }}>Video not available</Text>
-            )
-          );
-        })}
-    </View>
-  );
+                return (
+                  videoPath ? (
+                    <View key={`${product.videoUrl}-${index}`} style={{ marginBottom: 20, marginRight: 10 }}>
+                      <Video
+                        source={{ uri: `file://${videoPath}` }} // Load from the local file system
+                        style={{ width: 700, height: 300 }} // Adjust size and style as needed
+                        controls={false} // Add controls like play, pause, etc.
+                        resizeMode="cover" // Ensure the video covers the space
+                        paused={false} // Ensure the video plays automatically
+                        repeat={true} // Optional: Set to true if you want videos to loop
+                        muted={false} // Ensure the video plays with sound
+                        playInBackground={true}
+                        disableFocus={true}
+                      />
+                    </View>
+                  ) : (
+                    <Text key={`${product.videoUrl}-${index}`} style={{ color: '#fff' }}>Video not available</Text>
+                  )
+                );
+              })}
+            </ScrollView>
+          </View>
+         );
       default:
         return null;
     }
@@ -333,8 +303,6 @@ function App(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      {/* Left section for QR code */}
-
       <ScrollView contentContainerStyle={styles.mainContainer}>
         <SafeAreaView style={styles.container}>
           {renderComponent()}
@@ -391,9 +359,6 @@ const firstSectionStyles = StyleSheet.create({
     color: 'white',
   },
 
-
-
-
   offerLabel: {
     color: '#FFD700',
     fontWeight: 'bold',
@@ -412,7 +377,6 @@ const firstSectionStyles = StyleSheet.create({
     padding: 10
   },
   
-
   productTitle: {
     color: '#fff',
     fontSize: 18,
@@ -441,18 +405,38 @@ const firstSectionStyles = StyleSheet.create({
     fontSize: 48,
     color: '#ccc',
     textDecorationLine: 'line-through',
-    // marginLeft: 8,
   },
-
 
   productVendor: {
     color: '#fff',
     fontSize: 17,
   },
 
-
 })
 
+
+const secondSectionStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  imagesSectionContainer: {
+    flexDirection: 'row', // Align images horizontally
+    justifyContent: 'space-between', // Ensure even spacing between images
+    alignItems: 'center', // Align images vertically centered
+    width: '100%',
+    paddingHorizontal: 10, // Add padding so images don't touch the edges
+  },
+  imageWrapper: {
+    flex: 1, // Each image wrapper takes up equal space
+    justifyContent: 'center', // Center the content vertically
+    paddingHorizontal: 5, // Add spacing between each image wrapper
+  },
+  imageStyle: {
+    width: '100%', // Make the image take up the full width of the wrapper
+    height: 300, // Set a consistent height for the images
+    resizeMode: 'contain', // Make sure the image fits within its container
+  },
+});
 
 const styles = StyleSheet.create({
 
