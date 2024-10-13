@@ -35,125 +35,71 @@ interface DownloadStatus {
   message: string;
 }
 
-// const deviceIdFilePath = `${RNFS.DocumentDirectoryPath}/device_id.txt`;
 const backendUrl = "https://romantic-musical-glider.ngrok-free.app";
-
-// Function to register the device if no ID is found
-const registerDevice = async (deviceId: string) => {
-  try {
-    // Make a POST request to the URL with the deviceId in the path
-    const response = await fetch(`${backendUrl}/devices/${deviceId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({}), // Sending an empty body for the device registration
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-  } catch (error) {
-    console.error('[Debug] Error registering device:', error);
-    return null;
-  }
-};
-
 
 function App(): React.JSX.Element {
 
-  const [uniqueId, setUniqueId] = useState<string | null>(null);
-  const [currentComponent, setCurrentComponent] = useState(0); // State to keep track of the component to display
-  const [products, setProducts] = useState<Array<any>>([]); // State to hold products array
-  const [contentMapping, setContentMapping] = useState<{ [key: string]: string }>({});
-  // const [downloadStatuses, setDownloadStatuses] = useState<DownloadStatus[]>([]); // State to track download statuses
-  const [backgroundVideoPath, setBackgroundVideoPath] = useState<string | null>(null); // State to store the background video path
-  const [emptyStateImageDufry, setEmptyStateImageDufry] = useState<string | null>(null); // State to store the background video path
-  const [loadingProductsChanged, setLoadingProductsChanged] = useState(false); // State to hold products array
-  // const [loading, setLoading] = useState(true); // State to manage loading
-  // const [configurationFetched, setconfigurationFetched] = useState(false); // State to manage loading
+  const [uniqueId, setUniqueId]                                = useState<string | null>(null);
+  const [currentComponent, setCurrentComponent]                = useState(0); // State to keep track of the component to display
+  const [products, setProducts]                                = useState<Array<any>>([]); // State to hold products array
+  const [contentMapping, setContentMapping]                    = useState<{ [key: string]: string }>({});
+  const [backgroundVideoPath, setBackgroundVideoPath]          = useState<string | null>(null); // State to store the background video path
+  const [emptyStateImageDufry, setEmptyStateImageDufry]        = useState<string | null>(null); // State to store the background video path
+  const [loadingProductsChanged, setLoadingProductsChanged]    = useState(false); // State to hold products array
   
   const getDiscountedPrice = (originalPrice: number, discount: number) => {
     return (originalPrice - originalPrice * discount).toFixed(2);
   };
-  
-  const getDiscount = () => {
-    const discounts = [0.1, 0.2, 0.15, 0.25];
-    return discounts[Math.floor(Math.random() * discounts.length)];
-  };
 
   useEffect(() => {
-
-    downloadBackgroundVideo();
-    downloadEmptyStateImageDufry();
-
-    const fetchUniqueId = async () => {
+    const initializeApp = async () => {
+      downloadBackgroundVideo();
+      downloadEmptyStateImageDufry();
+      StatusBar.setHidden(true);
+  
+      // Fetch unique device ID first
       try {
-        const id = await DeviceInfo.getUniqueId(); // Await the unique ID
+        const id = await DeviceInfo.getUniqueId();
         setUniqueId(id); // Set the unique ID in state
+  
+        // Start the interval only after fetching the ID
+        const intervalTimes = [20000, 10000, 10000]; // 20 seconds for case 0, 10 seconds for others
+        let currentIndex = 0;
+    
+        const interval = setInterval(() => {
+          setCurrentComponent(currentIndex);
+          currentIndex = (currentIndex + 1) % intervalTimes.length;
+        }, intervalTimes[currentIndex]);
+    
+        // Cleanup the interval on unmount
+        return () => clearInterval(interval);
+        
       } catch (error) {
-
-      } finally {
-        // setLoading(false); // Set loading to false after ID is fetched
+        // Handle error if needed
       }
     };
-
-    fetchUniqueId(); // Fetch the unique ID on component mount
+  
+    initializeApp(); // Initialize the app on component mount
+  
   }, []);
-
-
-  // We start program here
-  useEffect(() => {
-
-    const intervalTimes = [20000, 10000, 10000]; // 20 seconds for case 0, 10 seconds for others
-    let currentIndex = 0;
-  
-    const interval = setInterval(() => {
-      setCurrentComponent(currentIndex);
-      currentIndex = (currentIndex + 1) % intervalTimes.length;
-    }, intervalTimes[currentIndex]);
-  
-    return () => clearInterval(interval);
-  }, []);
-
   
   
-
   useEffect(() => {
     const fetchData = async () => {
-      if (uniqueId) { // Ensure uniqueId is available
-        
+      if (uniqueId) {
         try {
-          
-          console.log('Sending request...');
 
           const response  =   await fetch(`${backendUrl}/devices/configuration/${uniqueId}`);
           const newConfig =   await response.json();
        
-          // Compare current products with the new products
-          console.log('Ovo je new config ', JSON.stringify(newConfig.productDetails));
-          
-          console.log('Ovo je Current prodocuts ', JSON.stringify(products));
-          
-
-
-
-          // console.log('trenutni produkti', products)
-          // console.log('novi konfig', newConfig)
           if (JSON.stringify(newConfig.productDetails) !== JSON.stringify(products)) {
-
-            console.log(newConfig.productDetails)
-            // console.log(JSON.stringify(products))
 
             // Update products and download new content if the products have changed
             setProducts(newConfig.productDetails || []);
             downloadContent(newConfig.contentToDownload || []);
             setLoadingProductsChanged(false);
           }
-          else {
-            console.log('products have not changed')
-          }
+          
         } catch (error) {
           console.error('[Debug] Error occurred while fetching data:', error);
         } 
@@ -161,36 +107,10 @@ function App(): React.JSX.Element {
     };
   
     fetchData(); // Start the initial fetch
-    const interval = setInterval(fetchData, 100000000)
+    const interval = setInterval(fetchData, 5000000);
     return () => clearInterval(interval); // Cleanup interval on component unmount
 
   }, [uniqueId]); // Empty dependency array, runs only on mount
-  
-
-  const fetchDeviceConfiguration = async (uniqueId: string) => {
-  
-    try {
-      let response = await fetch(`${backendUrl}/devices/configuration/${uniqueId}`);
-  
-      if (response.status === 404) {
-        await registerDevice(uniqueId); // Register the device if not found
-        response = await fetch(`${backendUrl}/devices/configuration/${uniqueId}`); // Re-fetch configuration after registering
-      }
-  
-      const json = await response.json();
-  
-      // Handle fetched data here, such as setting products and downloading content
-      if (json.productDetails?.length > 0) {
-        setProducts(json.productDetails || []);
-        downloadContent(json.contentToDownload || []);
-        // setconfigurationFetched(true);
-      }
-  
-    } catch (error) {
-      console.error('[Debug] Error occurred while fetching data:', error); // Debug statement
-    }
-  };
-  
   
 
   const downloadBackgroundVideo = async () => {
@@ -270,17 +190,7 @@ function App(): React.JSX.Element {
     setContentMapping(mapping); // Update state with the mapping
   };
 
-  // The initial request
-  useEffect(() => {
-    StatusBar.setHidden(true); // Hides the status bar
-    if (uniqueId) { // Ensure this runs only when uniqueId is available
-      fetchDeviceConfiguration(uniqueId);
-    }
-  }, [uniqueId]); // This effect will run only when uniqueId changes
-
   const renderComponent = () => {
-
-    {console.log('Rendering Video with path:', backgroundVideoPath)}
 
     switch (currentComponent) {
       case 0: // First component: Prices with product details
@@ -299,7 +209,6 @@ function App(): React.JSX.Element {
                 }
                 
               </View>
-
 
               <View key={`background-video`}>
                 {backgroundVideoPath ? (
@@ -320,7 +229,6 @@ function App(): React.JSX.Element {
 
                 ) : (
                   <>
-                    {console.log('No backgroundVideoPath, not rendering video')}
                     <Text>Video is loading or unavailable</Text>
                   </>
                 )}
@@ -338,7 +246,7 @@ function App(): React.JSX.Element {
                           {product.sellingPrice && (
                             <>
                               <Text style={firstSectionStyles.discountedPrice}>
-                                €{getDiscountedPrice(product.sellingPrice, getDiscount())}
+                                €{getDiscountedPrice(product.sellingPrice, 0.25)}
                               </Text>
                               <Text style={firstSectionStyles.originalPrice}>
                                 €{product.sellingPrice}
@@ -411,7 +319,7 @@ function App(): React.JSX.Element {
                         resizeMode="cover" // Ensure the video covers the space
                         paused={false} // Ensure the video plays automatically
                         repeat={true} // Optional: Set to true if you want videos to loop
-                        muted={false} // Ensure the video plays with sound
+                        muted={true} // Ensure the video plays with sound
                         playInBackground={true}
                         disableFocus={true}
                       />
