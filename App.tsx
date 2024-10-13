@@ -38,12 +38,13 @@ interface DownloadStatus {
 }
 
 // const deviceIdFilePath = `${RNFS.DocumentDirectoryPath}/device_id.txt`;
+const backendUrl = "https://romantic-musical-glider.ngrok-free.app";
 
 // Function to register the device if no ID is found
 const registerDevice = async (deviceId: string) => {
   try {
     // Make a POST request to the URL with the deviceId in the path
-    const response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/${deviceId}`, {
+    const response = await fetch(`${backendUrl}/devices/${deviceId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,10 +80,8 @@ function App(): React.JSX.Element {
     const fetchUniqueId = async () => {
       try {
         const id = await DeviceInfo.getUniqueId(); // Await the unique ID
-        // console.log('Device Unique ID:', id); // Log the unique ID
         setUniqueId(id); // Set the unique ID in state
       } catch (error) {
-        console.error('Error fetching unique ID:', error);
       } finally {
         setLoading(false); // Set loading to false after ID is fetched
       }
@@ -105,18 +104,15 @@ function App(): React.JSX.Element {
       if (uniqueId) { // Ensure uniqueId is available
         try {
           console.log('Sending request...');
-          const response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/configuration/${uniqueId}`);   
+          const response = await fetch(`${backendUrl}/devices/configuration/${uniqueId}`);
           const newConfig = await response.json();
        
           // Compare current products with the new products
 
-
-
           // ovde si imao problem newconfig product details je []
-
+          // console.log('trenutni produkti', products)
+          // console.log('novi konfig', newConfig)
           if (JSON.stringify(newConfig.productDetails) !== JSON.stringify(products)) {
-            setLoadingProductsChanged(true);
-            console.log("Products have changed");
 
             console.log(newConfig.productDetails)
             // console.log(JSON.stringify(products))
@@ -137,7 +133,7 @@ function App(): React.JSX.Element {
     };
   
     fetchData(); // Start the initial fetch
-    const interval = setInterval(fetchData, 5000)
+    const interval = setInterval(fetchData, 10000)
     return () => clearInterval(interval); // Cleanup interval on component unmount
 
   }, [uniqueId]); // Empty dependency array, runs only on mount
@@ -146,11 +142,11 @@ function App(): React.JSX.Element {
   const fetchDeviceConfiguration = async (uniqueId: string) => {
   
     try {
-      let response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/configuration/${uniqueId}`);
+      let response = await fetch(`${backendUrl}/devices/configuration/${uniqueId}`);
   
       if (response.status === 404) {
         await registerDevice(uniqueId); // Register the device if not found
-        response = await fetch(`https://romantic-musical-glider.ngrok-free.app/devices/configuration/${uniqueId}`); // Re-fetch configuration after registering
+        response = await fetch(`${backendUrl}/devices/configuration/${uniqueId}`); // Re-fetch configuration after registering
       }
   
       const json = await response.json();
@@ -167,26 +163,20 @@ function App(): React.JSX.Element {
     }
   };
   
-
-  useEffect(() => {
-    StatusBar.setHidden(true); // Hides the status bar
-    if (uniqueId) { // Ensure this runs only when uniqueId is available
-      fetchDeviceConfiguration(uniqueId);
-    }
-  }, [uniqueId]); // This effect will run only when uniqueId changes
   
 
   const downloadBackgroundVideo = async () => {
 
-    const videoId = '670abcd6c2e7df3eb68ba492'; // Background video ID
-    const filePath = `${RNFS.DocumentDirectoryPath}/${videoId}.mp4`; // Path to save the video
+    // THIS IS BACKGROUND VIDEO!!
+    const videoId = '670a8fe419570f13b35c63d3'; // Background video ID
+    const filePath = `${RNFS.DocumentDirectoryPath}/${videoId}.video`; // Path to save the video
     const fileExists = await RNFS.exists(filePath);
 
     if (!fileExists) {
       try {
         updateStatus({ id: videoId, status: 'downloading', message: 'Downloading background video' });
 
-        const downloadUrl = `https://romantic-musical-glider.ngrok-free.app/files/${videoId}`;
+        const downloadUrl = `${backendUrl}/files/${videoId}`;
         await RNFS.downloadFile({
           fromUrl: downloadUrl,
           toFile: filePath,
@@ -215,7 +205,7 @@ function App(): React.JSX.Element {
       try {
         updateStatus({ id: dufryImage, status: 'downloading', message: 'Downloading empty state  image' });
 
-        const downloadUrl = `https://romantic-musical-glider.ngrok-free.app/files/${dufryImage}`;
+        const downloadUrl = `${backendUrl}/files/${dufryImage}`;
         await RNFS.downloadFile({
           fromUrl: downloadUrl,
           toFile: filePath,
@@ -237,7 +227,6 @@ function App(): React.JSX.Element {
       ...prevStatuses.filter((s) => s.id !== status.id), // Remove previous status for the same content ID
       status, // Add the new status
     ]);
-    // console.log(`${status.id}: ${status.status} - ${status.message}`);
   };
 
    // Function to download content files
@@ -255,7 +244,7 @@ function App(): React.JSX.Element {
         try {
           updateStatus({ id: content.id, status: 'downloading', message: `Downloading file ${content.id}` });
 
-          const downloadUrl = `https://romantic-musical-glider.ngrok-free.app/files/${content.id}`;
+          const downloadUrl = `${backendUrl}/files/${content.id}`;
           await RNFS.downloadFile({
             fromUrl: downloadUrl,
             toFile: filePath,
@@ -275,19 +264,35 @@ function App(): React.JSX.Element {
     setContentMapping(mapping); // Update state with the mapping
   };
 
+
+  // We start program here
   useEffect(() => {
-    // Timer to change components every 5 seconds
+    // Download background video and empty state dufry image since t that is common for all devices
     downloadBackgroundVideo();
     downloadEmptyStateImageDufry();
     const interval = setInterval(() => {
-      setCurrentComponent(prevComponent => (prevComponent + 1) % 3);
-      // setCurrentComponent(2);
+      // setCurrentComponent(prevComponent => (prevComponent + 1) % 3);
+      setCurrentComponent(0);
 
     }, 6000);
     return () => clearInterval(interval); // Cleanup the interval on component unmount
   }, []);
 
+
+
+
+  // The initial request
+  useEffect(() => {
+    StatusBar.setHidden(true); // Hides the status bar
+    if (uniqueId) { // Ensure this runs only when uniqueId is available
+      fetchDeviceConfiguration(uniqueId);
+    }
+  }, [uniqueId]); // This effect will run only when uniqueId changes
+
   const renderComponent = () => {
+
+    {console.log('Rendering Video with path:', backgroundVideoPath)}
+
     switch (currentComponent) {
       case 0: // First component: Prices with product details
         return (
@@ -306,10 +311,9 @@ function App(): React.JSX.Element {
                 
               </View>
 
+
               <View key={`background-video`}>
                 {backgroundVideoPath ? (
-                  <>
-                    {/* {console.log('Rendering Video with path:', backgroundVideoPath)} */}
                     <Video
                       source={{ uri: `file://${backgroundVideoPath}` }}
                       style={[firstSectionStyles.absoluteVideo, { width: 3600, height: 300 }]}
@@ -320,19 +324,18 @@ function App(): React.JSX.Element {
                       muted={true} // Ensure the video is muted (for debugging)
                       playInBackground={true}
                       disableFocus={true}
-                      // onError={(error) => console.log('Video Error:', error)} // Add error handling
-                      // onBuffer={() => console.log('Buffering...')} // Add buffering detection
-                      // onLoad={() => console.log('Video loaded successfully')} // Check when the video is loaded
+                      onError={(error) => console.log('Video Error:', error)} // Add error handling
+                      onBuffer={() => console.log('Buffering...')} // Add buffering detection
+                      onLoad={() => console.log('Video loaded successfully')} // Check when the video is loaded
                     />
-                  </>
+
                 ) : (
                   <>
-                    {/* {console.log('No backgroundVideoPath, not rendering video')} */}
+                    {console.log('No backgroundVideoPath, not rendering video')}
                     <Text>Video is loading or unavailable</Text>
                   </>
                 )}
               </View>
-
 
               <View key={'product_prices_view'} style={firstSectionStyles.productSection}>
                 {products.map((product, index) => (
@@ -399,18 +402,19 @@ function App(): React.JSX.Element {
             <ScrollView contentContainerStyle={secondSectionStyles.imagesSectionContainer}>            
               {products.length > 0 &&
               products.map((product, index) => {
-                // console.log('Product Video:', product);
 
                 if (!product.videoUrl) {
-                  // console.log(`Product ${index} has no videoUrl`);
                   return null; // Skip if videoUrl is missing
                 }
 
                 const videoPath = contentMapping[product.videoUrl];
-
+                console.log(videoPath);
                 return (
+                  
                   videoPath ? (
+                    
                     <View key={`${product.videoUrl}-${index}`} style={{ marginBottom: 20, marginRight: 10 }}>
+                      
                       <Video
                         source={{ uri: `file://${videoPath}` }} // Load from the local file system
                         style={{ width: 700, height: 300 }} // Adjust size and style as needed
@@ -439,7 +443,7 @@ function App(): React.JSX.Element {
   if (!uniqueId || loadingProductsChanged === true) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Fetching Device ID and Configuration...</Text>
+        <Text style={{ fontSize: 24 }}>Fetching Device ID and Configuration...</Text>
       </View>
     )
   }
@@ -450,12 +454,10 @@ function App(): React.JSX.Element {
       <View style={styles.container}>
         <ScrollView contentContainerStyle={firstSectionStyles.productSectionContainer}>
           <View style={firstSectionStyles.qrSection}>
-            <Text style={firstSectionStyles.qrText}>QR CODE AREA</Text>
-            {/* <Image source={require('./src/images/device_123_qr_code.png')} style={{ width: 150, height: 150 }} /> */}
-            <QRCode
-            value={uniqueId}
-            size={150}
-          />
+              <QRCode
+                value={uniqueId}
+                size={150}
+              />
           </View>
 
           <Image
@@ -489,42 +491,6 @@ function App(): React.JSX.Element {
       </>
     );
   }
-
-  
-
-  // // Show a loading screen until the app is fully initialized
-  // if (loading === true || !uniqueId) {
-  //   return (
-  //     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-  //       {/* <ActivityIndicator size="large" color="#0000ff" /> */}
-  //       <Text>Fetching Device ID and Configuration...</Text>
-  //       <Image
-  //           source={{ uri: `file://${emptyStateImageDufry}` }} // Load from the local file system
-  //           style={secondSectionStyles.imageStyle} // Image style from StyleSheet
-  //         />
-  //     </View>
-  //   );
-  // }
-
-  // if (uniqueId && configurationFetched) {
-  //   return (
-  //     <View style={styles.container}>
-  //       <ScrollView contentContainerStyle={styles.mainContainer}>
-  //         <SafeAreaView style={styles.container}>
-  //           {/* {renderComponent()} */}
-  //         </SafeAreaView>
-  //       </ScrollView>
-  //     </View>
-  //   );
-  // }
-
-  // else {
-  //   return (<>
-  //   <View>
-  //     <Text>Something went wrong</Text>
-  //   </View>
-  //   </>);
-  // }
   
 }
 
@@ -661,20 +627,13 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     maxHeight: '100%'
   },
-
-
-
-
   container: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: '#000',
   },
   
-  
   productCard: {
-    // backgroundColor: '#222',
-    // marginVertical: 5, // Even vertical margin between product cards
     padding: 10,
     borderRadius: 8,
     borderColor: '#333',
@@ -682,7 +641,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginLeft: 10,
     marginRight: 10,
-    flex: 1, // Allows the product card to take up equal width within the row
+    flex: 1,
   },
   productTitle: {
     color: '#fff',
