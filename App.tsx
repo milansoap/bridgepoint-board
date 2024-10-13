@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Image,
   SafeAreaView,
@@ -18,8 +18,6 @@ import {
 import DeviceInfo from 'react-native-device-info';
 import RNFS from 'react-native-fs';
 import Video from 'react-native-video';
-import { reporter } from './metro.config';
-
 import QRCode from 'react-native-qrcode-svg';
 
 interface Content {
@@ -65,51 +63,82 @@ const registerDevice = async (deviceId: string) => {
 
 function App(): React.JSX.Element {
 
+  const [uniqueId, setUniqueId] = useState<string | null>(null);
   const [currentComponent, setCurrentComponent] = useState(0); // State to keep track of the component to display
   const [products, setProducts] = useState<Array<any>>([]); // State to hold products array
   const [contentMapping, setContentMapping] = useState<{ [key: string]: string }>({});
-  const [downloadStatuses, setDownloadStatuses] = useState<DownloadStatus[]>([]); // State to track download statuses
+  // const [downloadStatuses, setDownloadStatuses] = useState<DownloadStatus[]>([]); // State to track download statuses
   const [backgroundVideoPath, setBackgroundVideoPath] = useState<string | null>(null); // State to store the background video path
   const [emptyStateImageDufry, setEmptyStateImageDufry] = useState<string | null>(null); // State to store the background video path
   const [loadingProductsChanged, setLoadingProductsChanged] = useState(false); // State to hold products array
-  const [uniqueId, setUniqueId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true); // State to manage loading
-  const [configurationFetched, setconfigurationFetched] = useState(false); // State to manage loading
+  // const [loading, setLoading] = useState(true); // State to manage loading
+  // const [configurationFetched, setconfigurationFetched] = useState(false); // State to manage loading
+  
+  const getDiscountedPrice = (originalPrice: number, discount: number) => {
+    return (originalPrice - originalPrice * discount).toFixed(2);
+  };
+  
+  const getDiscount = () => {
+    const discounts = [0.1, 0.2, 0.15, 0.25];
+    return discounts[Math.floor(Math.random() * discounts.length)];
+  };
 
   useEffect(() => {
+
+    downloadBackgroundVideo();
+    downloadEmptyStateImageDufry();
+
     const fetchUniqueId = async () => {
       try {
         const id = await DeviceInfo.getUniqueId(); // Await the unique ID
         setUniqueId(id); // Set the unique ID in state
       } catch (error) {
+
       } finally {
-        setLoading(false); // Set loading to false after ID is fetched
+        // setLoading(false); // Set loading to false after ID is fetched
       }
     };
 
     fetchUniqueId(); // Fetch the unique ID on component mount
   }, []);
 
-  const getDiscountedPrice = (originalPrice: number, discount: number) => {
-    return (originalPrice - originalPrice * discount).toFixed(2);
-  };
+
+  // We start program here
+  useEffect(() => {
+
+    const intervalTimes = [20000, 10000, 10000]; // 20 seconds for case 0, 10 seconds for others
+    let currentIndex = 0;
   
-  const getDiscount = () => {
-    const discounts = [0.1, 0.2, 0.15, 0.25]; // 10%, 20%, 15%, 25%, etc.
-    return discounts[Math.floor(Math.random() * discounts.length)];
-  };
+    const interval = setInterval(() => {
+      setCurrentComponent(currentIndex);
+      currentIndex = (currentIndex + 1) % intervalTimes.length;
+    }, intervalTimes[currentIndex]);
+  
+    return () => clearInterval(interval);
+  }, []);
+
+  
+  
 
   useEffect(() => {
     const fetchData = async () => {
       if (uniqueId) { // Ensure uniqueId is available
+        
         try {
+          
           console.log('Sending request...');
-          const response = await fetch(`${backendUrl}/devices/configuration/${uniqueId}`);
-          const newConfig = await response.json();
+
+          const response  =   await fetch(`${backendUrl}/devices/configuration/${uniqueId}`);
+          const newConfig =   await response.json();
        
           // Compare current products with the new products
+          console.log('Ovo je new config ', JSON.stringify(newConfig.productDetails));
+          
+          console.log('Ovo je Current prodocuts ', JSON.stringify(products));
+          
 
-          // ovde si imao problem newconfig product details je []
+
+
           // console.log('trenutni produkti', products)
           // console.log('novi konfig', newConfig)
           if (JSON.stringify(newConfig.productDetails) !== JSON.stringify(products)) {
@@ -120,7 +149,6 @@ function App(): React.JSX.Element {
             // Update products and download new content if the products have changed
             setProducts(newConfig.productDetails || []);
             downloadContent(newConfig.contentToDownload || []);
-            setconfigurationFetched(true);
             setLoadingProductsChanged(false);
           }
           else {
@@ -133,7 +161,7 @@ function App(): React.JSX.Element {
     };
   
     fetchData(); // Start the initial fetch
-    const interval = setInterval(fetchData, 10000)
+    const interval = setInterval(fetchData, 100000000)
     return () => clearInterval(interval); // Cleanup interval on component unmount
 
   }, [uniqueId]); // Empty dependency array, runs only on mount
@@ -155,7 +183,7 @@ function App(): React.JSX.Element {
       if (json.productDetails?.length > 0) {
         setProducts(json.productDetails || []);
         downloadContent(json.contentToDownload || []);
-        setconfigurationFetched(true);
+        // setconfigurationFetched(true);
       }
   
     } catch (error) {
@@ -174,7 +202,6 @@ function App(): React.JSX.Element {
 
     if (!fileExists) {
       try {
-        updateStatus({ id: videoId, status: 'downloading', message: 'Downloading background video' });
 
         const downloadUrl = `${backendUrl}/files/${videoId}`;
         await RNFS.downloadFile({
@@ -182,17 +209,13 @@ function App(): React.JSX.Element {
           toFile: filePath,
         }).promise;
 
-        updateStatus({ id: videoId, status: 'completed', message: 'Background video downloaded' });
         setBackgroundVideoPath(filePath); // Store the video path in state
       } catch (error) {
-        updateStatus({ id: videoId, status: 'error', message: 'Error downloading background video' });
       }
     } else {
-      updateStatus({ id: videoId, status: 'already_exists', message: 'Background video already exists' });
       setBackgroundVideoPath(filePath); // Store the video path if it already exists
     }
   };
-
 
   // Function to download the background video
   const downloadEmptyStateImageDufry = async () => {
@@ -203,7 +226,7 @@ function App(): React.JSX.Element {
 
     if (!fileExists) {
       try {
-        updateStatus({ id: dufryImage, status: 'downloading', message: 'Downloading empty state  image' });
+        // updateStatus({ id: dufryImage, status: 'downloading', message: 'Downloading empty state  image' });
 
         const downloadUrl = `${backendUrl}/files/${dufryImage}`;
         await RNFS.downloadFile({
@@ -211,28 +234,26 @@ function App(): React.JSX.Element {
           toFile: filePath,
         }).promise;
 
-        updateStatus({ id: dufryImage, status: 'completed', message: 'Empty state image downloaded' });
+        // updateStatus({ id: dufryImage, status: 'completed', message: 'Empty state image downloaded' });
         setEmptyStateImageDufry(filePath); // Store the video path in state
       } catch (error) {
-        updateStatus({ id: dufryImage, status: 'error', message: 'Error downloading empty state image' });
+        // updateStatus({ id: dufryImage, status: 'error', message: 'Error downloading empty state image' });
       }
     } else {
-      updateStatus({ id: dufryImage, status: 'already_exists', message: 'Image already exists' });
+      // updateStatus({ id: dufryImage, status: 'already_exists', message: 'Image already exists' });
       setEmptyStateImageDufry(filePath); // Store the video path if it already exists
     }
   };
   
-  const updateStatus = (status: DownloadStatus) => {
-    setDownloadStatuses((prevStatuses) => [
-      ...prevStatuses.filter((s) => s.id !== status.id), // Remove previous status for the same content ID
-      status, // Add the new status
-    ]);
-  };
+  // const updateStatus = (status: DownloadStatus) => {
+  //   setDownloadStatuses((prevStatuses) => [
+  //     ...prevStatuses.filter((s) => s.id !== status.id), // Remove previous status for the same content ID
+  //     status, // Add the new status
+  //   ]);
+  // };
 
    // Function to download content files
-   const downloadContent = async (
-    contentArray: Content[]
-  ): Promise<void> => {
+   const downloadContent = async (contentArray: Content[]): Promise<void> => {
     const mapping: ContentMapping = {};
 
     for (const content of contentArray) {
@@ -242,7 +263,7 @@ function App(): React.JSX.Element {
 
       if (!fileExists) {
         try {
-          updateStatus({ id: content.id, status: 'downloading', message: `Downloading file ${content.id}` });
+          // updateStatus({ id: content.id, status: 'downloading', message: `Downloading file ${content.id}` });
 
           const downloadUrl = `${backendUrl}/files/${content.id}`;
           await RNFS.downloadFile({
@@ -250,12 +271,12 @@ function App(): React.JSX.Element {
             toFile: filePath,
           }).promise;
 
-          updateStatus({ id: content.id, status: 'completed', message: `File downloaded: ${filePath}` });
+          // updateStatus({ id: content.id, status: 'completed', message: `File downloaded: ${filePath}` });
         } catch (error) {
-          updateStatus({ id: content.id, status: 'error', message: `Error downloading file ${content.id}` });
+          // updateStatus({ id: content.id, status: 'error', message: `Error downloading file ${content.id}` });
         }
       } else {
-        updateStatus({ id: content.id, status: 'already_exists', message: `File already exists: ${filePath}` });
+        // updateStatus({ id: content.id, status: 'already_exists', message: `File already exists: ${filePath}` });
       }
 
       mapping[content.id] = filePath; // Map content ID to its local file path
@@ -265,18 +286,9 @@ function App(): React.JSX.Element {
   };
 
 
-  // We start program here
-  useEffect(() => {
-    // Download background video and empty state dufry image since t that is common for all devices
-    downloadBackgroundVideo();
-    downloadEmptyStateImageDufry();
-    const interval = setInterval(() => {
-      // setCurrentComponent(prevComponent => (prevComponent + 1) % 3);
-      setCurrentComponent(0);
 
-    }, 6000);
-    return () => clearInterval(interval); // Cleanup the interval on component unmount
-  }, []);
+
+
 
 
 
@@ -472,11 +484,11 @@ function App(): React.JSX.Element {
   else if (uniqueId && products.length > 0) {
     return (
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.mainContainer}>
-          <SafeAreaView style={styles.container}>
+        {/* <ScrollView contentContainerStyle={styles.mainContainer}> */}
+          {/* <SafeAreaView style={styles.container}> */}
             {renderComponent()}
-          </SafeAreaView>
-        </ScrollView>
+          {/* </SafeAreaView> */}
+        {/* </ScrollView> */}
       </View>
     )
     
