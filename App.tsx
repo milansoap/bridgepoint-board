@@ -226,7 +226,6 @@ function App(): React.JSX.Element {
 
     if (!fileExists) {
       try {
-        // updateStatus({ id: dufryImage, status: 'downloading', message: 'Downloading empty state  image' });
 
         const downloadUrl = `${backendUrl}/files/${dufryImage}`;
         await RNFS.downloadFile({
@@ -234,23 +233,15 @@ function App(): React.JSX.Element {
           toFile: filePath,
         }).promise;
 
-        // updateStatus({ id: dufryImage, status: 'completed', message: 'Empty state image downloaded' });
         setEmptyStateImageDufry(filePath); // Store the video path in state
       } catch (error) {
-        // updateStatus({ id: dufryImage, status: 'error', message: 'Error downloading empty state image' });
+
       }
     } else {
       // updateStatus({ id: dufryImage, status: 'already_exists', message: 'Image already exists' });
       setEmptyStateImageDufry(filePath); // Store the video path if it already exists
     }
   };
-  
-  // const updateStatus = (status: DownloadStatus) => {
-  //   setDownloadStatuses((prevStatuses) => [
-  //     ...prevStatuses.filter((s) => s.id !== status.id), // Remove previous status for the same content ID
-  //     status, // Add the new status
-  //   ]);
-  // };
 
    // Function to download content files
    const downloadContent = async (contentArray: Content[]): Promise<void> => {
@@ -258,40 +249,26 @@ function App(): React.JSX.Element {
 
     for (const content of contentArray) {
       const filePath = `${RNFS.DocumentDirectoryPath}/${content.id}.${content.type}`;
-      // const filePath = `${RNFS.DownloadDirectoryPath}/${content.id}.${content.type}`;
       const fileExists = await RNFS.exists(filePath);
 
       if (!fileExists) {
         try {
-          // updateStatus({ id: content.id, status: 'downloading', message: `Downloading file ${content.id}` });
-
           const downloadUrl = `${backendUrl}/files/${content.id}`;
           await RNFS.downloadFile({
             fromUrl: downloadUrl,
             toFile: filePath,
           }).promise;
 
-          // updateStatus({ id: content.id, status: 'completed', message: `File downloaded: ${filePath}` });
         } catch (error) {
-          // updateStatus({ id: content.id, status: 'error', message: `Error downloading file ${content.id}` });
+
         }
-      } else {
-        // updateStatus({ id: content.id, status: 'already_exists', message: `File already exists: ${filePath}` });
-      }
+      } 
 
       mapping[content.id] = filePath; // Map content ID to its local file path
     }
 
     setContentMapping(mapping); // Update state with the mapping
   };
-
-
-
-
-
-
-
-
 
   // The initial request
   useEffect(() => {
@@ -505,7 +482,6 @@ function App(): React.JSX.Element {
   }
   
 }
-
 
 const firstSectionStyles = StyleSheet.create({
   productSectionContainer: {
