@@ -93,7 +93,7 @@ function App(): React.JSX.Element {
     };
   
     fetchData(); // Start the initial fetch
-    const interval = setInterval(fetchData, 5000);
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval); // Cleanup interval on component unmount
 
   }, [uniqueId]); // Empty dependency array, runs only on mount
