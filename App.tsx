@@ -9,7 +9,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Dimensions,
   Image,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -18,9 +17,8 @@ import {
 } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 import RNFS from 'react-native-fs';
-import Video from 'react-native-video';
+import Video, { BufferConfig, ViewType } from 'react-native-video';
 import QRCode from 'react-native-qrcode-svg';
-import axios from 'axios';
 
 interface Content {
   id: string;
@@ -38,7 +36,9 @@ interface DownloadStatus {
 }
 
 const deviceHeight = Dimensions.get('window').height;
-const backendUrl = "https://romantic-musical-glider.ngrok-free.app";
+const calculatedHeight = deviceHeight * 0.8; // 80% of the device height
+
+const backendUrl = "http://104.248.134.34:80";
 const amazonUrl = 'https://bridge-point-bucket.s3.eu-north-1.amazonaws.com';
 
 function App(): React.JSX.Element {
@@ -47,6 +47,20 @@ function App(): React.JSX.Element {
   const [products, setProducts]                                = useState<Array<any>>([]); // State to hold products array
   const [contentMapping, setContentMapping]                    = useState<{ [key: string]: string }>({});
   const [loadingProductsChanged, setLoadingProductsChanged]    = useState(false); // State to hold products array
+
+  
+  const optimizedBufferConfig: BufferConfig = {
+    minBufferMs: 5000,  // Minimum buffer duration in milliseconds
+    maxBufferMs: 10000,  // Maximum buffer duration in milliseconds
+    bufferForPlaybackMs: 1000,  // Minimum buffer duration before playback starts
+    bufferForPlaybackAfterRebufferMs: 2000,  // Buffer duration after rebuffering
+    backBufferDurationMs: 0,  // Keep no back-buffer to avoid memory buildup
+    maxHeapAllocationPercent: 0.5,  // Allocate only 50% of heap size to avoid overuse
+    minBufferMemoryReservePercent: 0.1,  // Reserve at least 10% of free memory for playback
+  };
+
+  // const RETRY_DELAY = 3000; // Retry delay in milliseconds
+  // const MAX_RETRY_COUNT = 50; // Max retry attempts
 
   const getDiscountedPrice = (originalPrice: number, discount: number) => {
     return (originalPrice - originalPrice * discount).toFixed(2);
@@ -69,25 +83,45 @@ function App(): React.JSX.Element {
     initializeApp();
   
   }, []);
-  
+
   
   useEffect(() => {
     const fetchData = async () => {
+
       if (uniqueId) {
         try {
           const response  =   await fetch(`${backendUrl}/devices/configuration/${uniqueId}`);
           const newConfig =   await response.json();
-       
-          if (JSON.stringify(newConfig.productDetails) !== JSON.stringify(products)) {
+
+          if (response.status === 404) {
+
+            await fetch(`http://104.248.134.34:80/devices/${uniqueId}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            });
+          }
+
+          
+          if (newConfig.productDetails !== products) {
 
             // Update products and download new content if the products have changed
             setProducts(newConfig.productDetails || []);
             downloadContent(newConfig.contentToDownload || []);
             setLoadingProductsChanged(false);
           }
+
+          if (newConfig.productDetails.length === 0) {
+            setProducts([])
+          }
+
+
+
+
           
         } catch (error) {
-          console.error('[Debug] Error occurred while fetching data:', error);
+
         } 
       }
     };
@@ -100,7 +134,8 @@ function App(): React.JSX.Element {
 
   const downloadContent = async (contentArray: Content[]): Promise<void> => {
     const mapping: ContentMapping = {};
-    console.log(contentArray)
+
+    // listFilesInDirectory(RNFS.DocumentDirectoryPath);
 
     for (const content of contentArray) {
 
@@ -137,105 +172,149 @@ function App(): React.JSX.Element {
     const isVideo = (content: string) => /\.(mp4|avi|mkv|mov)$/i.test(content);
     const isImage = (content: string) => /\.(jpg|jpeg|png|gif)$/i.test
 
-    return (
-      <View style={styles.container}>
 
-        <ScrollView contentContainerStyle={firstSectionStyles.productSectionContainer}>
-          <View style={firstSectionStyles.qrSection}>
-            <Text style={firstSectionStyles.qrText}>QR CODE AREA</Text>
+    if (products.length === 0) {
 
-            {uniqueId &&
-              <QRCode
-                value={uniqueId}
-                size={150}
-              />
-            }
-            
-          </View>
+      let amazonDufry = `${amazonUrl}/dufry.jpg`;
+      
+      const qrSectionWidth = Dimensions.get('window').width * 0.07; // 7% of screen width
+      let qrCodeSize = 100;
 
-          <View key={'product_prices_view'} style={firstSectionStyles.productSection}>
-            {products.map((product, index) => {
+      if (qrSectionWidth > 240) {
+        qrCodeSize = qrSectionWidth * 0.45; // 80% of qrSection width
+      } else {
+        qrCodeSize = qrSectionWidth * 0.75; // 80% of qrSection width
+      }
 
-              let amazonImage = `${amazonUrl}/${product.imgUrl}`;
-              let videoPath = contentMapping[product.videoUrl];
+      return (
+        <View style={styles.container}>
+          <ScrollView contentContainerStyle={firstSectionStyles.productSectionContainer}>
+            <View style={firstSectionStyles.qrSection}>
+              <View style={firstSectionStyles.qrCodeContainer}>
+                {uniqueId &&
+                  <QRCode
+                    value={uniqueId}
+                    size={qrCodeSize} // Ensures the QR code adapts to the container's size
+                  />
+                }
+              </View>
 
-              // Check if video URL ends with .mp4 and adjust to .video
-              if (product.videoUrl.endsWith('.mp4')) {
-                const modifiedUrl = product.videoUrl.replace('.mp4', '.video');
-                videoPath = contentMapping[modifiedUrl] || videoPath; // Use the modified URL if found, fallback to original
-              }          
-
-              return (
-                <View style={firstSectionStyles.productCombo}>
-
-                  <View key={index} style={firstSectionStyles.productCard}>
-
-                    <Text style={firstSectionStyles.offerLabel}>SPECIAL OFFER</Text>
-
-                    <View style={firstSectionStyles.priceContainer}>
-                      <Text style={firstSectionStyles.productTitle}>{product.name}</Text>
-                      <View style={firstSectionStyles.priceValues}>
-                        {product.price && (
-                          <>
-                            <Text style={firstSectionStyles.discountedPrice}>
-                              €{getDiscountedPrice(product.price, 0.25)}
-                            </Text>
-                            <Text style={firstSectionStyles.originalPrice}>
-                              €{product.price}
-                            </Text>
-                          </>
-                        )}
-                      </View>
-                    </View>
-
-                    <Text style={firstSectionStyles.productVendor}>{product.brand}</Text>
-
-                  </View>
-
-                  <View key={`${product.videoUrl}-${index}`} style={firstSectionStyles.productComboContent}>
-
-                    {isVideo(product.contentUrl) && (
-                        
-                      <Video
-                          source={{ uri: `file://${videoPath}`}} // Load from the local file system
-                          style={{ width: 450, height: 300 }} // Adjust size and style as needed
-                          controls={false} // Add controls like play, pause, etc.
-                          resizeMode="cover" // Ensure the video covers the space
-                          paused={false} // Ensure the video plays automatically
-                          repeat={true} // Optional: Set to true if you want videos to loop
-                          muted={true} // Ensure the video plays with sound
-                          playInBackground={true}
-                          disableFocus={true}
-  
-                          // onLoad={() => console.log('Video loaded successfully:', videoPath)}
-                          // onError={(error) => console.error('Video failed to load:', error)}
-                          // onBuffer={(buffer) => console.log('Buffering:', buffer)}
-                          // onProgress={(data) => console.log('Video progress:', data.currentTime)}
-                          // onEnd={() => console.log('Video finished playing.')}
-                          // onLoadStart={() => console.log('Video load started.')}
-                          // onReadyForDisplay={() => console.log('Video ready for display.')}
-  
-                        />
-                    )}
-
-                    {isImage(product.contentUrl) && (
-                      <View key={`${product.imgUrl}-${index}`} style={firstSectionStyles.imageStyle}>
-                        <Image
-                          source={{ uri: amazonImage }} 
-                          style={firstSectionStyles.imageStyle} 
-                          resizeMode="cover"
-                        />
-                      </View>
-                    )}
-
-                  </View>
-
-                </View>
-              )})}
             </View>
-        </ScrollView>
-      </View>
-    );
+  
+            <Image
+              source={{ uri: amazonDufry}} 
+              style={emptyStateImageDufryStyles.image}
+            />
+          </ScrollView>
+        </View>
+      ) 
+    } else {
+
+      const qrSectionWidth = Dimensions.get('window').width * 0.07; // 7% of screen width
+      let qrCodeSize = 100;
+
+      if (qrSectionWidth > 240) {
+        qrCodeSize = qrSectionWidth * 0.45; // 80% of qrSection width
+      } else {
+        qrCodeSize = qrSectionWidth * 0.75; // 80% of qrSection width
+      }
+
+
+      return (
+        <View style={styles.container}>
+  
+          <ScrollView contentContainerStyle={firstSectionStyles.productSectionContainer}>
+            <View style={firstSectionStyles.qrSection}>
+              <Text style={firstSectionStyles.qrText}>QR CODE AREA</Text>
+                <View style={firstSectionStyles.qrCodeContainer}>
+                  {uniqueId &&
+                    <QRCode
+                      value={uniqueId}
+                      size={qrCodeSize}
+                    />
+                  }
+              </View>
+            </View>
+  
+            <View key={'product_prices_view'} style={firstSectionStyles.productSection}>
+              {products.map((product, index) => {
+  
+                let amazonImage = `${amazonUrl}/${product.contentUrl}`;
+                let videoPath = contentMapping[product.contentUrl];
+  
+                return (
+                  <View style={firstSectionStyles.productCombo}>
+  
+                    <View key={index} style={firstSectionStyles.productCard}>
+  
+                      <Text style={firstSectionStyles.offerLabel}>SPECIAL OFFER</Text>
+  
+                      <View style={firstSectionStyles.priceContainer}>
+                        <Text style={firstSectionStyles.productTitle}>{product.name}</Text>
+                        <View style={firstSectionStyles.priceValues}>
+                          {product.price && (
+                            <>
+                              <Text style={firstSectionStyles.discountedPrice}>
+                                €{getDiscountedPrice(product.price, 0.25)}
+                              </Text>
+                              <Text style={firstSectionStyles.originalPrice}>
+                                €{product.price}
+                              </Text>
+                            </>
+                          )}
+                        </View>
+                      </View>
+  
+                      <Text style={firstSectionStyles.productVendor}>{product.brand}</Text>
+  
+                    </View>
+  
+                    <View key={`${product.videoUrl}-${index}`} style={firstSectionStyles.productComboContent}>
+  
+                      {isVideo(product.contentUrl) && (
+                          
+                        <Video
+                            key={`${product.videoUrl}-${index}`}
+                            source={{ uri: `file://${videoPath}`}} // Load from the local file system
+                            style={{ width: 460, height: deviceHeight }} // Adjust size and style as needed
+                            controls={false} // Add controls like play, pause, etc.
+                            resizeMode="cover" // Ensure the video covers the space
+                            paused={false} // Ensure the video plays automatically
+                            repeat={true} // Optional: Set to true if you want videos to loop
+                            muted={true} // Ensure the video plays with sound
+                            playInBackground={true}
+                            disableFocus={true}
+                            bufferConfig={optimizedBufferConfig}
+                            viewType={ViewType.SURFACE}
+                            // onError={(error) => {
+                            //   setTimeout(retryVideo, RETRY_DELAY);  // Retry after delay
+                            // }} 
+                            // onLoad={handleVideoLoad}                         
+    
+                          />
+                      )}
+  
+                      {isImage(product.contentUrl) && (
+                        <View key={`${product.imgUrl}-${index}`} style={firstSectionStyles.imageStyle}>
+                          <Image
+                            source={{ uri: amazonImage }} 
+                            style={firstSectionStyles.imageStyle} 
+                            resizeMode="cover"
+                          />
+                        </View>
+                      )}
+  
+                    </View>
+  
+                  </View>
+                )})}
+              </View>
+          </ScrollView>
+        </View>
+      );
+
+
+    }
 
   };
 
@@ -251,29 +330,41 @@ function App(): React.JSX.Element {
   else if (products.length === 0) {
 
     let amazonDufry = `${amazonUrl}/dufry.jpg`;
+    
+    const qrSectionWidth = Dimensions.get('window').width * 0.07; // 7% of screen width
+    let qrCodeSize = 100;
+
+    if (qrSectionWidth > 240) {
+      qrCodeSize = qrSectionWidth * 0.45; // 80% of qrSection width
+    } else {
+      qrCodeSize = qrSectionWidth * 0.75; // 80% of qrSection width
+    }
 
     return (
       <View style={styles.container}>
         <ScrollView contentContainerStyle={firstSectionStyles.productSectionContainer}>
           <View style={firstSectionStyles.qrSection}>
+            <View style={firstSectionStyles.qrCodeContainer}>
+
               <QRCode
                 value={uniqueId}
-                size={150}
-              />
+                size={qrCodeSize} // Ensures the QR code adapts to the container's size
+                />
+                
+            </View>
+
           </View>
 
-          
-
           <Image
-            source={{ uri: amazonDufry}} // Load from the local file system
-            style={emptyStateImageDufryStyles.image} // Image style from StyleSheet
+            source={{ uri: amazonDufry}} 
+            style={emptyStateImageDufryStyles.image}
           />
         </ScrollView>
       </View>
     ) 
   } 
   
-  else if (uniqueId && products.length > 0) {
+  else if (uniqueId && products.length !== 0) {
     return (
       <View style={styles.container}>
         {/* <ScrollView contentContainerStyle={styles.mainContainer}> */}
@@ -305,18 +396,21 @@ const firstSectionStyles = StyleSheet.create({
     flexDirection: 'row',
     position: 'relative',
     maxWidth: '100%',
+    height: deviceHeight,
+    maxHeight: deviceHeight
   },
   imageStyle: { 
     height: deviceHeight,
-    width: 450
+    maxWidth: 600,
+    width: 460
   },
   productCombo: {
     flexDirection: 'row',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
 
   productComboContent: {
-    height: '100%',
+    height: deviceHeight,
   },
   productSection: {
     flex: 1,
@@ -332,6 +426,11 @@ const firstSectionStyles = StyleSheet.create({
     backgroundColor: 'white',
     borderRightColor: '#333',
   },
+  qrCodeContainer: {
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   qrText: {
     color: '#fff',
     fontSize: 12,
@@ -341,7 +440,9 @@ const firstSectionStyles = StyleSheet.create({
     backgroundColor: '#201f1f',
     maxWidth: 600,
     minWidth: 500,
-    height: '100%',
+    height: deviceHeight,
+    maxHeight: deviceHeight,
+    minHeight: deviceHeight,
     padding: 20,
     color: 'white',
   },
@@ -350,20 +451,21 @@ const firstSectionStyles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 23,
     marginBottom: 8,
+    height: '10%'
   },
   priceContainer: {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
-    width: '90%',
-    height: 180,
+    // width: '90%',
+    height: '80%',
     borderColor: 'white',
     borderWidth: 1,
     padding: 10
   },
   productTitle: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: 'bold',
     marginTop: 8,
   },
@@ -376,20 +478,21 @@ const firstSectionStyles = StyleSheet.create({
     alignItems: 'flex-end'
   },
   discountedPrice: {
-    fontSize: 60,
+    fontSize: 70,
     marginTop: 48,
     alignItems: 'baseline',
     fontWeight: 'bold',
     color: '#FFD700',
   },
   originalPrice: {
-    fontSize: 48,
+    fontSize: 58,
     color: '#ccc',
     textDecorationLine: 'line-through',
   },
 
   productVendor: {
     color: '#fff',
+    height: '10%',
     fontSize: 17,
   },
 
@@ -432,7 +535,7 @@ const emptyStateImageDufryStyles = StyleSheet.create({
   image: {
     flex: 1,
     position: 'relative',
-    maxWidth: '101%',
+    maxWidth: '100%',
     maxHeight: '100%'
   },
 
